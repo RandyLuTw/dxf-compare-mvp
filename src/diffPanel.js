@@ -57,6 +57,7 @@ export function renderFolderResultsTable(tbody, rows, onViewDetail) {
       <td class="status-${r.status}">${htmlEscape(r.status)}</td>
       <td>${r.documentDiffCount ?? "-"}</td>
       <td>${r.entityDiffCount ?? "-"}</td>
+      <td>${htmlEscape(r.cutLayerText || "-")}</td>
       <td><button ${r.canOpen ? "" : "disabled"}>查看詳情</button></td>
     `;
     tr.querySelector("button").addEventListener("click", () => onViewDetail(r));

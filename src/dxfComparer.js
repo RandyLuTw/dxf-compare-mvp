@@ -29,7 +29,7 @@ function docDiffItem(field, a, b, isEqual) {
   };
 }
 
-function buildDocumentDiff(a, b) {
+function buildDocumentDiff(a, b, tol) {
   const aEntities = a.entities.filter((e) => SUPPORTED_TYPES.has(e.type));
   const bEntities = b.entities.filter((e) => SUPPORTED_TYPES.has(e.type));
 
@@ -56,10 +56,10 @@ function buildDocumentDiff(a, b) {
       "Extents",
       `${formatNum(a.bounds.minX)},${formatNum(a.bounds.minY)} ~ ${formatNum(a.bounds.maxX)},${formatNum(a.bounds.maxY)}`,
       `${formatNum(b.bounds.minX)},${formatNum(b.bounds.minY)} ~ ${formatNum(b.bounds.maxX)},${formatNum(b.bounds.maxY)}`,
-      nearlyEqual(a.bounds.minX, b.bounds.minX, 0.001)
-      && nearlyEqual(a.bounds.minY, b.bounds.minY, 0.001)
-      && nearlyEqual(a.bounds.maxX, b.bounds.maxX, 0.001)
-      && nearlyEqual(a.bounds.maxY, b.bounds.maxY, 0.001)
+      nearlyEqual(a.bounds.minX, b.bounds.minX, tol.coordTol)
+      && nearlyEqual(a.bounds.minY, b.bounds.minY, tol.coordTol)
+      && nearlyEqual(a.bounds.maxX, b.bounds.maxX, tol.coordTol)
+      && nearlyEqual(a.bounds.maxY, b.bounds.maxY, tol.coordTol)
     ),
   ];
 
@@ -173,7 +173,7 @@ function findBestMatch(a, candidates, used, tol) {
 }
 
 export function compareNormalizedDxf(a, b, tol) {
-  const documentDiffs = buildDocumentDiff(a, b);
+  const documentDiffs = buildDocumentDiff(a, b, tol);
   const anchorA = docAnchor(a);
   const anchorB = docAnchor(b);
   const offset = { x: anchorB.x - anchorA.x, y: anchorB.y - anchorA.y };
@@ -258,6 +258,15 @@ export function compareNormalizedDxf(a, b, tol) {
     modified: diffs.filter((d) => d.status === DIFF_STATUS.MODIFIED).length,
     unchanged: diffs.filter((d) => d.status === DIFF_STATUS.UNCHANGED).length,
   };
+
+  const cutLayerDiffCount = diffs.filter((d) => {
+    if (d.status === DIFF_STATUS.UNCHANGED) return false;
+    const layerA = (d.a?.layer || "").toUpperCase();
+    const layerB = (d.b?.layer || "").toUpperCase();
+    return layerA === "CUT" || layerB === "CUT";
+  }).length;
+  stats.cutLayerEntityDiffCount = cutLayerDiffCount;
+  stats.cutLayerSame = cutLayerDiffCount === 0;
 
   return { documentDiffs, entityDiffs: diffs, stats, alignment: { anchorA, anchorB, offset } };
 }

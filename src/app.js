@@ -14,7 +14,7 @@ export function createApp() {
   const els = bindElements();
 
   const state = {
-    tolerances: { coordTol: 0.001, lengthTol: 0.001, radiusTol: 0.001, angleTol: 0.01 },
+    tolerances: { coordTol: 0.1, lengthTol: 0.1, radiusTol: 0.1, angleTol: 0.1 },
     compareFlags: { ignoreLineTypeDiff: true, ignoreColorDiff: true },
     overlayShift: { dx: 0, dy: 0 },
     displayMode: "split",
@@ -202,10 +202,10 @@ export function createApp() {
   }
 
   function syncTolerances() {
-    state.tolerances.coordTol = Number(els.tolCoord.value) || 0.001;
-    state.tolerances.lengthTol = Number(els.tolLength.value) || 0.001;
+    state.tolerances.coordTol = Number(els.tolCoord.value) || 0.1;
+    state.tolerances.lengthTol = Number(els.tolLength.value) || 0.1;
     state.tolerances.radiusTol = state.tolerances.lengthTol;
-    state.tolerances.angleTol = Number(els.tolAngle.value) || 0.01;
+    state.tolerances.angleTol = Number(els.tolAngle.value) || 0.1;
   }
 
   function syncCompareFlags() {
@@ -385,6 +385,8 @@ export function createApp() {
         status: DIFF_STATUS.SAME,
         documentDiffCount: 0,
         entityDiffCount: 0,
+        cutLayerDiffCount: 0,
+        cutLayerText: "Same",
         canOpen: false,
       };
 
@@ -398,6 +400,8 @@ export function createApp() {
 
           row.documentDiffCount = diff.stats.documentDiffCount;
           row.entityDiffCount = diff.stats.entityDiffCount;
+          row.cutLayerDiffCount = diff.stats.cutLayerEntityDiffCount ?? 0;
+          row.cutLayerText = row.cutLayerDiffCount === 0 ? "Same" : `Diff(${row.cutLayerDiffCount})`;
           row.status = (diff.stats.documentDiffCount === 0 && diff.stats.entityDiffCount === 0)
             ? DIFF_STATUS.SAME
             : DIFF_STATUS.MODIFIED;
@@ -406,12 +410,15 @@ export function createApp() {
           state.folder.detailMap.set(p.name, { normA, normB, diff });
         } else if (p.a && !p.b) {
           row.status = DIFF_STATUS.REMOVED;
+          row.cutLayerText = "-";
         } else if (!p.a && p.b) {
           row.status = DIFF_STATUS.ADDED;
+          row.cutLayerText = "-";
         }
       } catch (err) {
         row.status = DIFF_STATUS.ERROR;
         row.error = err.message;
+        row.cutLayerText = "Error";
         els.folderErrors.textContent += `${p.name}: ${err.message}\n`;
       }
 
@@ -476,18 +483,18 @@ export function createApp() {
   }
 
   function exportFolderCsv() {
-    const lines = ["filename,status,documentDiffCount,entityDiffCount"];
+    const lines = ["filename,status,documentDiffCount,entityDiffCount,cutLayerDiffCount,cutLayerResult"];
     for (const r of state.folder.results) {
-      lines.push(`${csv(r.name)},${csv(r.status)},${r.documentDiffCount ?? 0},${r.entityDiffCount ?? 0}`);
+      lines.push(`${csv(r.name)},${csv(r.status)},${r.documentDiffCount ?? 0},${r.entityDiffCount ?? 0},${r.cutLayerDiffCount ?? 0},${csv(r.cutLayerText ?? "-")}`);
     }
     downloadText("folder-diff-report.csv", lines.join("\n"), "text/csv;charset=utf-8");
   }
 
   function exportFolderHtml() {
-    const rows = state.folder.results.map((r) => `<tr><td>${htmlEscape(r.name)}</td><td>${htmlEscape(r.status)}</td><td>${r.documentDiffCount ?? "-"}</td><td>${r.entityDiffCount ?? "-"}</td></tr>`).join("");
+    const rows = state.folder.results.map((r) => `<tr><td>${htmlEscape(r.name)}</td><td>${htmlEscape(r.status)}</td><td>${r.documentDiffCount ?? "-"}</td><td>${r.entityDiffCount ?? "-"}</td><td>${htmlEscape(r.cutLayerText ?? "-")}</td></tr>`).join("");
     const html = `<!doctype html><html><head><meta charset="UTF-8"><title>Folder DXF Report</title></head><body>
       <h1>Folder Compare Report</h1>
-      <table border="1" cellspacing="0" cellpadding="4"><tr><th>檔名</th><th>狀態</th><th>文件差異數量</th><th>圖形差異數量</th></tr>${rows}</table>
+      <table border="1" cellspacing="0" cellpadding="4"><tr><th>檔名</th><th>狀態</th><th>文件差異數量</th><th>圖形差異數量</th><th>CUT圖層圖型差異</th></tr>${rows}</table>
     </body></html>`;
     downloadText("folder-diff-report.html", html, "text/html;charset=utf-8");
   }

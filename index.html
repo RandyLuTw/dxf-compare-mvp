@@ -32,9 +32,9 @@
         <button id="zoom-in-btn">Zoom +</button>
         <button id="zoom-out-btn">Zoom -</button>
 
-        <label>座標容差 <input id="tol-coord" type="number" step="0.0001" value="0.001" /></label>
-        <label>長度容差 <input id="tol-length" type="number" step="0.0001" value="0.001" /></label>
-        <label>角度容差 <input id="tol-angle" type="number" step="0.001" value="0.01" /></label>
+        <label>座標容差 <input id="tol-coord" type="number" step="0.0001" value="0.1" /></label>
+        <label>長度容差 <input id="tol-length" type="number" step="0.0001" value="0.1" /></label>
+        <label>角度容差 <input id="tol-angle" type="number" step="0.001" value="0.1" /></label>
         <label><input id="ignore-linetype" type="checkbox" checked /> 忽略線型差異</label>
         <label><input id="ignore-color" type="checkbox" checked /> 忽略顏色差異</label>
         <label>疊圖校正 dx <input id="overlay-dx" type="number" step="0.001" value="0" /></label>
@@ -121,6 +121,7 @@
               <th>狀態</th>
               <th>文件差異數量</th>
               <th>圖形差異數量</th>
+              <th>CUT圖層圖型差異</th>
               <th>操作</th>
             </tr>
           </thead>
