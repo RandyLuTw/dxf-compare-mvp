@@ -46,7 +46,7 @@ export function renderEntityDiffList(container, diffs, showUnchanged, onClick) {
   }
 }
 
-export function renderFolderResultsTable(tbody, rows, onViewDetail) {
+export function renderFolderResultsTable(tbody, rows, onViewDetail, onNoteChange) {
   tbody.innerHTML = "";
   for (const r of rows) {
     const tr = document.createElement("tr");
@@ -58,9 +58,11 @@ export function renderFolderResultsTable(tbody, rows, onViewDetail) {
       <td>${r.documentDiffCount ?? "-"}</td>
       <td>${r.entityDiffCount ?? "-"}</td>
       <td>${htmlEscape(r.cutLayerText || "-")}</td>
+      <td><input type="text" class="note-input" value="${htmlEscape(r.note || "")}" placeholder="輸入註解" /></td>
       <td><button ${r.canOpen ? "" : "disabled"}>查看詳情</button></td>
     `;
     tr.querySelector("button").addEventListener("click", () => onViewDetail(r));
+    tr.querySelector(".note-input").addEventListener("input", (e) => onNoteChange(r, e.target.value));
     tbody.appendChild(tr);
   }
 }

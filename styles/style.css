@@ -152,6 +152,10 @@ th, td {
   font-size: 13px;
   text-align: left;
 }
+.note-input {
+  width: 180px;
+  max-width: 100%;
+}
 
 .progress-wrap {
   display: flex;

@@ -387,6 +387,7 @@ export function createApp() {
         entityDiffCount: 0,
         cutLayerDiffCount: 0,
         cutLayerText: "Same",
+        note: "",
         canOpen: false,
       };
 
@@ -452,30 +453,37 @@ export function createApp() {
     }
     rows = sortRows(rows);
 
-    renderFolderResultsTable(els.folderResultBody, rows, (row) => {
-      const detail = state.folder.detailMap.get(row.name);
-      if (!detail) return;
-      state.normA = detail.normA;
-      state.normB = detail.normB;
-      // Re-run compare with current UI options so "查看詳情" always shows latest diff behavior.
-      syncTolerances();
-      syncCompareFlags();
-      state.diffResult = compareNormalizedDxf(state.normA, state.normB, getCompareOptions());
-      state.displayMode = "overlay";
-      els.displayMode.value = "overlay";
-      const offset = state.diffResult?.alignment?.offset;
-      if (offset) setOverlayShift(-offset.x, -offset.y);
-      switchTab("single");
-      recomputeLayerVisibility();
-      applyDisplayMode();
-      refreshPanels();
-      // Render after single view becomes visible; hidden canvas can report zero size.
-      requestAnimationFrame(() => {
-        rerenderAll();
-        rendererOverlay.fit();
-      });
-      setStatus(`已載入詳情: ${row.name}，文件差異 ${state.diffResult.stats.documentDiffCount}，圖形差異 ${state.diffResult.stats.entityDiffCount}`);
-    });
+    renderFolderResultsTable(
+      els.folderResultBody,
+      rows,
+      (row) => {
+        const detail = state.folder.detailMap.get(row.name);
+        if (!detail) return;
+        state.normA = detail.normA;
+        state.normB = detail.normB;
+        // Re-run compare with current UI options so "查看詳情" always shows latest diff behavior.
+        syncTolerances();
+        syncCompareFlags();
+        state.diffResult = compareNormalizedDxf(state.normA, state.normB, getCompareOptions());
+        state.displayMode = "overlay";
+        els.displayMode.value = "overlay";
+        const offset = state.diffResult?.alignment?.offset;
+        if (offset) setOverlayShift(-offset.x, -offset.y);
+        switchTab("single");
+        recomputeLayerVisibility();
+        applyDisplayMode();
+        refreshPanels();
+        // Render after single view becomes visible; hidden canvas can report zero size.
+        requestAnimationFrame(() => {
+          rerenderAll();
+          rendererOverlay.fit();
+        });
+        setStatus(`已載入詳情: ${row.name}，文件差異 ${state.diffResult.stats.documentDiffCount}，圖形差異 ${state.diffResult.stats.entityDiffCount}`);
+      },
+      (row, note) => {
+        row.note = note;
+      },
+    );
   }
 
   function exportFolderJson() {
@@ -483,18 +491,18 @@ export function createApp() {
   }
 
   function exportFolderCsv() {
-    const lines = ["filename,status,documentDiffCount,entityDiffCount,cutLayerDiffCount,cutLayerResult"];
+    const lines = ["filename,status,documentDiffCount,entityDiffCount,cutLayerDiffCount,cutLayerResult,note"];
     for (const r of state.folder.results) {
-      lines.push(`${csv(r.name)},${csv(r.status)},${r.documentDiffCount ?? 0},${r.entityDiffCount ?? 0},${r.cutLayerDiffCount ?? 0},${csv(r.cutLayerText ?? "-")}`);
+      lines.push(`${csv(r.name)},${csv(r.status)},${r.documentDiffCount ?? 0},${r.entityDiffCount ?? 0},${r.cutLayerDiffCount ?? 0},${csv(r.cutLayerText ?? "-")},${csv(r.note ?? "")}`);
     }
     downloadText("folder-diff-report.csv", lines.join("\n"), "text/csv;charset=utf-8");
   }
 
   function exportFolderHtml() {
-    const rows = state.folder.results.map((r) => `<tr><td>${htmlEscape(r.name)}</td><td>${htmlEscape(r.status)}</td><td>${r.documentDiffCount ?? "-"}</td><td>${r.entityDiffCount ?? "-"}</td><td>${htmlEscape(r.cutLayerText ?? "-")}</td></tr>`).join("");
+    const rows = state.folder.results.map((r) => `<tr><td>${htmlEscape(r.name)}</td><td>${htmlEscape(r.status)}</td><td>${r.documentDiffCount ?? "-"}</td><td>${r.entityDiffCount ?? "-"}</td><td>${htmlEscape(r.cutLayerText ?? "-")}</td><td>${htmlEscape(r.note ?? "")}</td></tr>`).join("");
     const html = `<!doctype html><html><head><meta charset="UTF-8"><title>Folder DXF Report</title></head><body>
       <h1>Folder Compare Report</h1>
-      <table border="1" cellspacing="0" cellpadding="4"><tr><th>檔名</th><th>狀態</th><th>文件差異數量</th><th>圖形差異數量</th><th>CUT圖層圖型差異</th></tr>${rows}</table>
+      <table border="1" cellspacing="0" cellpadding="4"><tr><th>檔名</th><th>狀態</th><th>文件差異數量</th><th>圖形差異數量</th><th>CUT圖層圖型差異</th><th>註解</th></tr>${rows}</table>
     </body></html>`;
     downloadText("folder-diff-report.html", html, "text/html;charset=utf-8");
   }
