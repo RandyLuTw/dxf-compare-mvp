@@ -66,6 +66,42 @@ function buildDocumentDiff(a, b) {
   return items;
 }
 
+function docAnchor(doc) {
+  const minX = Number.isFinite(doc?.bounds?.minX) ? doc.bounds.minX : 0;
+  const minY = Number.isFinite(doc?.bounds?.minY) ? doc.bounds.minY : 0;
+  return { x: minX, y: minY };
+}
+
+function shiftPoint(p, anchor) {
+  if (!p) return p;
+  return { ...p, x: p.x - anchor.x, y: p.y - anchor.y };
+}
+
+function shiftEntityForCompare(entity, anchor) {
+  const cloned = {
+    ...entity,
+    center: shiftPoint(entity.center, anchor),
+    bbox: {
+      ...entity.bbox,
+      minX: entity.bbox.minX - anchor.x,
+      minY: entity.bbox.minY - anchor.y,
+      maxX: entity.bbox.maxX - anchor.x,
+      maxY: entity.bbox.maxY - anchor.y,
+    },
+    geom: { ...entity.geom },
+  };
+
+  if (cloned.geom.start) cloned.geom.start = shiftPoint(cloned.geom.start, anchor);
+  if (cloned.geom.end) cloned.geom.end = shiftPoint(cloned.geom.end, anchor);
+  if (cloned.geom.center) cloned.geom.center = shiftPoint(cloned.geom.center, anchor);
+  if (cloned.geom.insertion) cloned.geom.insertion = shiftPoint(cloned.geom.insertion, anchor);
+  if (Array.isArray(cloned.geom.vertices)) {
+    cloned.geom.vertices = cloned.geom.vertices.map((p) => shiftPoint(p, anchor));
+  }
+
+  return cloned;
+}
+
 function groupKey(e) {
   let suffix = "";
   if (["TEXT", "MTEXT"].includes(e.type)) suffix = `|${e.geom.text || ""}`;
@@ -138,13 +174,26 @@ function findBestMatch(a, candidates, used, tol) {
 
 export function compareNormalizedDxf(a, b, tol) {
   const documentDiffs = buildDocumentDiff(a, b);
+  const anchorA = docAnchor(a);
+  const anchorB = docAnchor(b);
+  const offset = { x: anchorB.x - anchorA.x, y: anchorB.y - anchorA.y };
+  documentDiffs.push(docDiffItem(
+    "平移偏移(B-A, 以最小XY對齊)",
+    `dx=${formatNum(offset.x)}, dy=${formatNum(offset.y)}`,
+    "圖形比對已套用此偏移校正",
+    nearlyEqual(offset.x, 0, tol.coordTol) && nearlyEqual(offset.y, 0, tol.coordTol),
+  ));
 
-  const entitiesA = a.entities.filter((e) => SUPPORTED_TYPES.has(e.type));
-  const entitiesB = b.entities.filter((e) => SUPPORTED_TYPES.has(e.type));
+  const entitiesA = a.entities
+    .filter((e) => SUPPORTED_TYPES.has(e.type))
+    .map((e) => ({ src: e, cmp: shiftEntityForCompare(e, anchorA) }));
+  const entitiesB = b.entities
+    .filter((e) => SUPPORTED_TYPES.has(e.type))
+    .map((e) => ({ src: e, cmp: shiftEntityForCompare(e, anchorB) }));
 
   const groupedB = new Map();
   for (const e of entitiesB) {
-    const key = groupKey(e);
+    const key = groupKey(e.cmp);
     if (!groupedB.has(key)) groupedB.set(key, []);
     groupedB.get(key).push(e);
   }
@@ -153,50 +202,50 @@ export function compareNormalizedDxf(a, b, tol) {
   const diffs = [];
 
   for (const aEnt of entitiesA) {
-    const key = groupKey(aEnt);
-    const candidates = groupedB.get(key) || entitiesB.filter((bEnt) => bEnt.type === aEnt.type);
+    const key = groupKey(aEnt.cmp);
+    const candidates = groupedB.get(key) || entitiesB.filter((bEnt) => bEnt.cmp.type === aEnt.cmp.type);
     const used = usedByGroup.get(key) || new Set();
     usedByGroup.set(key, used);
 
-    const idx = findBestMatch(aEnt, candidates, used, tol);
+    const idx = findBestMatch(aEnt.cmp, candidates.map((x) => x.cmp), used, tol);
     if (idx == null) {
       diffs.push({
         status: DIFF_STATUS.REMOVED,
-        entityType: aEnt.type,
-        layer: aEnt.layer,
+        entityType: aEnt.src.type,
+        layer: aEnt.src.layer,
         description: "A 有、B 沒有",
-        a: aEnt,
+        a: aEnt.src,
         b: null,
-        position: aEnt.center,
+        position: aEnt.src.center,
       });
       continue;
     }
 
     used.add(idx);
     const bEnt = candidates[idx];
-    const changes = compareProps(aEnt, bEnt, tol);
+    const changes = compareProps(aEnt.cmp, bEnt.cmp, tol);
     diffs.push({
       status: changes.length ? DIFF_STATUS.MODIFIED : DIFF_STATUS.UNCHANGED,
-      entityType: aEnt.type,
-      layer: `${aEnt.layer}${aEnt.layer !== bEnt.layer ? ` -> ${bEnt.layer}` : ""}`,
+      entityType: aEnt.src.type,
+      layer: `${aEnt.src.layer}${aEnt.src.layer !== bEnt.src.layer ? ` -> ${bEnt.src.layer}` : ""}`,
       description: changes.length ? changes.join("、") : "相同",
-      a: aEnt,
-      b: bEnt,
-      position: bboxCenter(aEnt.bbox),
+      a: aEnt.src,
+      b: bEnt.src,
+      position: bboxCenter(aEnt.src.bbox),
     });
   }
 
   for (const bEnt of entitiesB) {
-    const exists = diffs.some((d) => d.b === bEnt);
+    const exists = diffs.some((d) => d.b === bEnt.src);
     if (!exists) {
       diffs.push({
         status: DIFF_STATUS.ADDED,
-        entityType: bEnt.type,
-        layer: bEnt.layer,
+        entityType: bEnt.src.type,
+        layer: bEnt.src.layer,
         description: "B 新增",
         a: null,
-        b: bEnt,
-        position: bEnt.center,
+        b: bEnt.src,
+        position: bEnt.src.center,
       });
     }
   }
@@ -210,5 +259,5 @@ export function compareNormalizedDxf(a, b, tol) {
     unchanged: diffs.filter((d) => d.status === DIFF_STATUS.UNCHANGED).length,
   };
 
-  return { documentDiffs, entityDiffs: diffs, stats };
+  return { documentDiffs, entityDiffs: diffs, stats, alignment: { anchorA, anchorB, offset } };
 }
