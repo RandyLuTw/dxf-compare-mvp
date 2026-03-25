@@ -1,0 +1,11 @@
+﻿node_modules/
+.tmp/
+*.log
+tmp-*.js
+tmp-*.cjs
+tmp-*.mjs
+tmp-*.png
+.DS_Store
+Thumbs.db
+
+1141129/

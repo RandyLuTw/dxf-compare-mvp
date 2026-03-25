@@ -1,0 +1,17 @@
+{
+  "name": "dxf",
+  "version": "1.0.0",
+  "description": "純前端 DXF 比對工具，可直接部署到 GitHub Pages。支援單檔比對與資料夾批次比對，不需後端、資料庫或登入。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dxf-parser": "^1.1.2",
+    "http-server": "^14.1.1",
+    "playwright": "^1.58.2"
+  }
+}

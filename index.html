@@ -1,0 +1,131 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DXF 文件比對程式</title>
+  <link rel="stylesheet" href="./styles/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">DXF 文件比對程式 (MVP)</div>
+    <nav class="tabs">
+      <button id="tab-single" class="tab active">單檔比對</button>
+      <button id="tab-folder" class="tab">資料夾比對</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="single-view" class="view active">
+      <div class="toolbar">
+        <div id="app-status" class="status-bar">狀態: 初始化中...</div>
+        <label class="file-btn">載入 A.dxf <input id="file-a" type="file" accept=".dxf" /></label>
+        <label class="file-btn">載入 B.dxf <input id="file-b" type="file" accept=".dxf" /></label>
+
+        <select id="display-mode">
+          <option value="split">左右並排</option>
+          <option value="overlay">疊圖模式</option>
+          <option value="diff">差異模式</option>
+        </select>
+
+        <button id="fit-btn">Fit</button>
+        <button id="zoom-in-btn">Zoom +</button>
+        <button id="zoom-out-btn">Zoom -</button>
+
+        <label>座標容差 <input id="tol-coord" type="number" step="0.0001" value="0.001" /></label>
+        <label>長度容差 <input id="tol-length" type="number" step="0.0001" value="0.001" /></label>
+        <label>角度容差 <input id="tol-angle" type="number" step="0.001" value="0.01" /></label>
+
+        <button id="run-compare-btn">比對</button>
+        <button id="export-json-btn">匯出 JSON</button>
+        <button id="export-html-btn">匯出 HTML</button>
+        <button id="export-stats-btn">匯出統計</button>
+      </div>
+
+      <div id="single-content" class="single-content split">
+        <div class="canvas-panel" id="panel-a">
+          <div class="panel-title">A 檔</div>
+          <canvas id="canvas-a"></canvas>
+          <div id="coord-a" class="coord">x: -, y: -</div>
+        </div>
+        <div class="canvas-panel" id="panel-b">
+          <div class="panel-title">B 檔</div>
+          <canvas id="canvas-b"></canvas>
+          <div id="coord-b" class="coord">x: -, y: -</div>
+        </div>
+        <div class="canvas-panel hidden" id="panel-overlay">
+          <div class="panel-title">疊圖 / 差異</div>
+          <canvas id="canvas-overlay"></canvas>
+          <div id="coord-overlay" class="coord">x: -, y: -</div>
+        </div>
+      </div>
+
+      <div class="side-layout">
+        <aside class="side-panel" id="layers-panel">
+          <h3>圖層</h3>
+          <div id="layer-list"></div>
+        </aside>
+
+        <section class="side-panel" id="doc-diff-panel">
+          <h3>文件層比對摘要</h3>
+          <div id="doc-diff-table"></div>
+        </section>
+
+        <section class="side-panel" id="entity-diff-panel">
+          <h3>圖形層差異清單</h3>
+          <label><input id="show-unchanged" type="checkbox" /> 顯示 Unchanged</label>
+          <div id="entity-diff-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="folder-view" class="view">
+      <div class="toolbar">
+        <label class="file-btn">選擇 Folder A <input id="folder-a" type="file" webkitdirectory directory multiple /></label>
+        <label class="file-btn">選擇 Folder B <input id="folder-b" type="file" webkitdirectory directory multiple /></label>
+        <button id="run-folder-compare-btn">開始批次比對</button>
+        <button id="stop-folder-compare-btn">停止比對</button>
+
+        <label><input id="folder-only-diff" type="checkbox" /> 只看有差異</label>
+        <label>排序
+          <select id="folder-sort">
+            <option value="name">檔名</option>
+            <option value="diffDesc">差異數量(大到小)</option>
+            <option value="diffAsc">差異數量(小到大)</option>
+          </select>
+        </label>
+
+        <button id="export-folder-json-btn">匯出批次 JSON</button>
+        <button id="export-folder-csv-btn">匯出批次 CSV</button>
+        <button id="export-folder-html-btn">匯出批次 HTML</button>
+      </div>
+
+      <div class="progress-wrap">
+        <div id="folder-progress-text">Processing 0 / 0</div>
+        <progress id="folder-progress" max="0" value="0"></progress>
+      </div>
+
+      <div class="table-wrap">
+        <table id="folder-result-table">
+          <thead>
+            <tr>
+              <th>檔名</th>
+              <th>相對路徑 A</th>
+              <th>相對路徑 B</th>
+              <th>狀態</th>
+              <th>文件差異數量</th>
+              <th>圖形差異數量</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="folder-errors" class="errors"></div>
+    </section>
+  </main>
+
+  <script src="./src/vendor/dxf-parser.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

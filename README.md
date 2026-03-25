@@ -1,0 +1,100 @@
+﻿# DXF 文件比對程式 (Frontend MVP)
+
+純前端 DXF 比對工具，可直接部署到 GitHub Pages。支援單檔比對與資料夾批次比對，不需後端、資料庫或登入。
+
+## 功能摘要
+
+- 單檔比對
+  - 載入 `A.dxf` / `B.dxf`
+  - 顯示模式：左右並排 / 疊圖 / 差異模式
+  - 操作：Zoom in/out、Pan、Fit to screen、座標顯示
+  - 圖層顯示/隱藏
+  - 文件層比對（header、單位、layers、blocks、entities、extents）
+  - 圖形層比對（LINE、LWPOLYLINE、POLYLINE、CIRCLE、ARC、TEXT、MTEXT、INSERT）
+  - 差異分類：Added / Removed / Modified / Unchanged
+  - 點擊差異項目自動定位
+  - 匯出：JSON / HTML / 統計 JSON
+
+- 資料夾批次比對
+  - `webkitdirectory` 選擇 Folder A / Folder B
+  - 遞迴掃描子資料夾中的 `.dxf`
+  - 以「檔名（不含路徑）」配對
+  - 狀態：Same / Modified / Added / Removed / Error
+  - 顯示進度條與 `Stop` 中斷
+  - 可篩選（只看差異）與排序（依差異數量）
+  - 點選列可載入到單檔比對畫面
+  - 匯出：批次 JSON / CSV / HTML
+
+## 專案結構
+
+```text
+.
+├─ index.html
+├─ styles/
+│  └─ style.css
+├─ src/
+│  ├─ main.js
+│  ├─ app.js
+│  ├─ dxfLoader.js
+│  ├─ dxfNormalizer.js
+│  ├─ dxfComparer.js
+│  ├─ dxfRenderer.js
+│  ├─ diffPanel.js
+│  └─ utils.js
+└─ README.md
+```
+
+## 啟動方式
+
+這是靜態網站，請用任一靜態伺服器啟動：
+
+```bash
+# Node 18+
+npx serve .
+# 或
+npx http-server .
+```
+
+開啟瀏覽器進入顯示的本機網址。
+
+## GitHub Pages 部署
+
+1. 推送專案到 GitHub。
+2. 在 `Settings -> Pages`：
+   - Source 選 `Deploy from a branch`
+   - Branch 選 `main`，資料夾 `/ (root)`
+3. 等待部署完成後，使用 Pages URL 開啟。
+
+## 比對設計說明
+
+- **不是逐行文字 diff**：先解析為結構化資料再比對。
+- **Normalization**：
+  - 座標四捨五入至容差精度
+  - 浮點容差判斷
+  - 文字清理（trim + 空白正規化）
+  - 空值顏色/線型標準化為 `BYLAYER`
+- **容差參數（預設）**：
+  - 座標：`0.001`
+  - 長度/半徑：`0.001`
+  - 角度：`0.01`
+- **實體配對策略**：
+  - 主要依 `type + layer + 幾何中心 + 特徵` 配對
+  - TEXT/MTEXT 納入文字內容
+  - INSERT 納入 block name 與插入點
+  - 不依賴 handle
+- **Block 比對**：
+  - 文件層含 block 定義數量差異
+  - 圖形層對 INSERT 比對名稱、插入點、旋轉、縮放
+
+## 已知限制（MVP）
+
+- ARC 的完整角段包覆判斷為簡化處理。
+- 未支援所有 DXF entity 類型（可擴充 `dxfNormalizer.js` 與 `dxfComparer.js`）。
+- 大量檔案時，批次處理仍取決於瀏覽器記憶體與 DXF 複雜度。
+
+## 未來擴充建議
+
+- 增加更多 entity 支援（ELLIPSE、SPLINE、DIMENSION 等）
+- 加入 DWG/PDF 比對流程
+- 多檔案批次差異視覺化輸出
+- 匯出差異標記圖層圖像（PNG/SVG）
