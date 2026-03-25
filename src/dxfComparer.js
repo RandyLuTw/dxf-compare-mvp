@@ -128,8 +128,8 @@ function compareProps(a, b, tol) {
 
   if ((a.geom.text || "") !== (b.geom.text || "")) changes.push("文字內容差異");
   if ((a.layer || "") !== (b.layer || "")) changes.push("圖層差異");
-  if ((a.color || "") !== (b.color || "")) changes.push("顏色差異");
-  if ((a.lineType || "") !== (b.lineType || "")) changes.push("線型差異");
+  if (!tol.ignoreColorDiff && (a.color || "") !== (b.color || "")) changes.push("顏色差異");
+  if (!tol.ignoreLineTypeDiff && (a.lineType || "") !== (b.lineType || "")) changes.push("線型差異");
   if ((a.geom.blockName || "") !== (b.geom.blockName || "")) changes.push("Block 名稱差異");
 
   const ap = a.geom.insertion || a.geom.center;

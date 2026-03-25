@@ -21,16 +21,23 @@ function resizeCanvas(canvas) {
   return { ratio, rect };
 }
 
-function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle) {
+function shiftPoint(p, shift) {
+  const dx = shift?.dx || 0;
+  const dy = shift?.dy || 0;
+  return { x: p.x + dx, y: p.y + dy };
+}
+
+function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle, shift) {
   ctx.strokeStyle = strokeStyle;
   ctx.fillStyle = fillStyle || strokeStyle;
   ctx.lineWidth = 1;
+  const map = (p) => worldToScreen(shiftPoint(p, shift));
 
   switch (ent.type) {
     case "LINE": {
       if (!ent.geom.start || !ent.geom.end) break;
-      const a = worldToScreen(ent.geom.start);
-      const b = worldToScreen(ent.geom.end);
+      const a = map(ent.geom.start);
+      const b = map(ent.geom.end);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -42,10 +49,10 @@ function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle) {
       const vs = ent.geom.vertices || [];
       if (!vs.length) break;
       ctx.beginPath();
-      const p0 = worldToScreen(vs[0]);
+      const p0 = map(vs[0]);
       ctx.moveTo(p0.x, p0.y);
       for (let i = 1; i < vs.length; i += 1) {
-        const p = worldToScreen(vs[i]);
+        const p = map(vs[i]);
         ctx.lineTo(p.x, p.y);
       }
       if (ent.geom.closed) ctx.closePath();
@@ -54,8 +61,8 @@ function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle) {
     }
     case "CIRCLE": {
       if (!ent.geom.center || ent.geom.radius == null) break;
-      const c = worldToScreen(ent.geom.center);
-      const edge = worldToScreen({ x: ent.geom.center.x + ent.geom.radius, y: ent.geom.center.y });
+      const c = map(ent.geom.center);
+      const edge = map({ x: ent.geom.center.x + ent.geom.radius, y: ent.geom.center.y });
       const r = Math.abs(edge.x - c.x);
       ctx.beginPath();
       ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
@@ -64,8 +71,8 @@ function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle) {
     }
     case "ARC": {
       if (!ent.geom.center || ent.geom.radius == null) break;
-      const c = worldToScreen(ent.geom.center);
-      const edge = worldToScreen({ x: ent.geom.center.x + ent.geom.radius, y: ent.geom.center.y });
+      const c = map(ent.geom.center);
+      const edge = map({ x: ent.geom.center.x + ent.geom.radius, y: ent.geom.center.y });
       const r = Math.abs(edge.x - c.x);
       const sa = (ent.geom.startAngle || 0) * Math.PI / 180;
       const ea = (ent.geom.endAngle || 0) * Math.PI / 180;
@@ -77,14 +84,14 @@ function drawEntity(ctx, ent, worldToScreen, strokeStyle, fillStyle) {
     case "TEXT":
     case "MTEXT": {
       if (!ent.geom.insertion && !ent.center) break;
-      const p = worldToScreen(ent.geom.insertion || ent.center);
+      const p = map(ent.geom.insertion || ent.center);
       ctx.font = "12px Consolas";
       ctx.fillText(ent.geom.text || "", p.x, p.y);
       break;
     }
     case "INSERT": {
       if (!ent.geom.insertion && !ent.center) break;
-      const p = worldToScreen(ent.geom.insertion || ent.center);
+      const p = map(ent.geom.insertion || ent.center);
       ctx.beginPath();
       ctx.rect(p.x - 4, p.y - 4, 8, 8);
       ctx.stroke();
@@ -150,7 +157,13 @@ export class DxfCanvasRenderer {
     const bb = createBBox();
     for (const it of this.items) {
       if (this.layerVisibility && this.layerVisibility[it.entity.layer] === false) continue;
-      mergeBBox(bb, it.entity.bbox);
+      const shift = it.shift || { dx: 0, dy: 0 };
+      mergeBBox(bb, {
+        minX: it.entity.bbox.minX + shift.dx,
+        minY: it.entity.bbox.minY + shift.dy,
+        maxX: it.entity.bbox.maxX + shift.dx,
+        maxY: it.entity.bbox.maxY + shift.dy,
+      });
     }
     return bb;
   }
@@ -218,7 +231,7 @@ export class DxfCanvasRenderer {
         let color = STATUS_COLOR[item.status] || STATUS_COLOR.Unchanged;
         if (item.status === "DefaultA") color = STATUS_COLOR.DefaultA;
         if (item.status === "DefaultB") color = STATUS_COLOR.DefaultB;
-        drawEntity(ctx, item.entity, worldToScreen, color, color);
+        drawEntity(ctx, item.entity, worldToScreen, color, color, item.shift || { dx: 0, dy: 0 });
       } catch (err) {
         // Skip broken entities to keep viewer responsive.
       }
@@ -232,21 +245,26 @@ export class DxfCanvasRenderer {
 export function buildRenderItemsSingle(doc, sourceName) {
   if (!doc) return [];
   const status = sourceName === "A" ? "DefaultA" : "DefaultB";
-  return doc.entities.map((e) => ({ entity: e, status }));
+  return doc.entities.map((e) => ({ entity: e, status, source: sourceName, shift: { dx: 0, dy: 0 } }));
 }
 
-export function buildRenderItemsOverlay(diffResult, mode = "overlay") {
+export function buildRenderItemsOverlay(diffResult, mode = "overlay", options = {}) {
   if (!diffResult) return [];
+  const shiftB = options.shiftB || { dx: 0, dy: 0 };
   const out = [];
+
+  const pushA = (entity, status) => out.push({ entity, status, source: "A", shift: { dx: 0, dy: 0 } });
+  const pushB = (entity, status) => out.push({ entity, status, source: "B", shift: shiftB });
+
   for (const d of diffResult.entityDiffs) {
     if (mode === "diff" && d.status === "Unchanged") continue;
-    if (d.status === "Added" && d.b) out.push({ entity: d.b, status: "Added" });
-    else if (d.status === "Removed" && d.a) out.push({ entity: d.a, status: "Removed" });
+    if (d.status === "Added" && d.b) pushB(d.b, "Added");
+    else if (d.status === "Removed" && d.a) pushA(d.a, "Removed");
     else if (d.status === "Modified") {
-      if (d.a) out.push({ entity: d.a, status: "Modified" });
-      if (d.b) out.push({ entity: d.b, status: "Modified" });
+      if (d.a) pushA(d.a, "Modified");
+      if (d.b) pushB(d.b, "Modified");
     } else if (d.status === "Unchanged" && d.a) {
-      out.push({ entity: d.a, status: "Unchanged" });
+      pushA(d.a, "Unchanged");
     }
   }
   return out;

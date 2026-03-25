@@ -15,6 +15,8 @@ export function createApp() {
 
   const state = {
     tolerances: { coordTol: 0.001, lengthTol: 0.001, radiusTol: 0.001, angleTol: 0.01 },
+    compareFlags: { ignoreLineTypeDiff: true, ignoreColorDiff: true },
+    overlayShift: { dx: 0, dy: 0 },
     displayMode: "split",
     fileA: null,
     fileB: null,
@@ -59,6 +61,11 @@ export function createApp() {
       exportJsonBtn: document.getElementById("export-json-btn"),
       exportHtmlBtn: document.getElementById("export-html-btn"),
       exportStatsBtn: document.getElementById("export-stats-btn"),
+      ignoreLineType: document.getElementById("ignore-linetype"),
+      ignoreColor: document.getElementById("ignore-color"),
+      overlayDx: document.getElementById("overlay-dx"),
+      overlayDy: document.getElementById("overlay-dy"),
+      autoAlignBtn: document.getElementById("auto-align-btn"),
 
       tolCoord: document.getElementById("tol-coord"),
       tolLength: document.getElementById("tol-length"),
@@ -132,6 +139,11 @@ export function createApp() {
     els.tolCoord.addEventListener("change", syncTolerances);
     els.tolLength.addEventListener("change", syncTolerances);
     els.tolAngle.addEventListener("change", syncTolerances);
+    els.ignoreLineType.addEventListener("change", syncCompareFlags);
+    els.ignoreColor.addEventListener("change", syncCompareFlags);
+    els.overlayDx.addEventListener("change", syncOverlayShiftFromInputs);
+    els.overlayDy.addEventListener("change", syncOverlayShiftFromInputs);
+    els.autoAlignBtn.addEventListener("click", applyAutoAlignmentFromDiff);
 
     els.exportJsonBtn.addEventListener("click", exportSingleJson);
     els.exportHtmlBtn.addEventListener("click", exportSingleHtml);
@@ -194,6 +206,39 @@ export function createApp() {
     state.tolerances.angleTol = Number(els.tolAngle.value) || 0.01;
   }
 
+  function syncCompareFlags() {
+    state.compareFlags.ignoreLineTypeDiff = Boolean(els.ignoreLineType.checked);
+    state.compareFlags.ignoreColorDiff = Boolean(els.ignoreColor.checked);
+  }
+
+  function getCompareOptions() {
+    return {
+      ...state.tolerances,
+      ignoreLineTypeDiff: state.compareFlags.ignoreLineTypeDiff,
+      ignoreColorDiff: state.compareFlags.ignoreColorDiff,
+    };
+  }
+
+  function setOverlayShift(dx, dy) {
+    state.overlayShift.dx = Number(dx) || 0;
+    state.overlayShift.dy = Number(dy) || 0;
+    els.overlayDx.value = String(state.overlayShift.dx);
+    els.overlayDy.value = String(state.overlayShift.dy);
+  }
+
+  function syncOverlayShiftFromInputs() {
+    setOverlayShift(Number(els.overlayDx.value) || 0, Number(els.overlayDy.value) || 0);
+    rerenderAll();
+  }
+
+  function applyAutoAlignmentFromDiff() {
+    const offset = state.diffResult?.alignment?.offset;
+    if (!offset) return;
+    setOverlayShift(-offset.x, -offset.y);
+    rerenderAll();
+    setStatus(`已套用平移校正: dx=${state.overlayShift.dx.toFixed(3)}, dy=${state.overlayShift.dy.toFixed(3)}`);
+  }
+
   function recomputeLayerVisibility() {
     const layers = new Set([...(state.normA?.layers || []), ...(state.normB?.layers || [])]);
     for (const layer of layers) {
@@ -212,7 +257,9 @@ export function createApp() {
       return;
     }
     syncTolerances();
-    state.diffResult = compareNormalizedDxf(state.normA, state.normB, state.tolerances);
+    syncCompareFlags();
+    state.diffResult = compareNormalizedDxf(state.normA, state.normB, getCompareOptions());
+    applyAutoAlignmentFromDiff();
     setStatus(`比對完成: 文件差異 ${state.diffResult.stats.documentDiffCount}，圖形差異 ${state.diffResult.stats.entityDiffCount}`);
     refreshPanels();
     rerenderAll();
@@ -229,10 +276,19 @@ export function createApp() {
       state.diffResult?.entityDiffs || [],
       els.showUnchanged.checked,
       (diffItem) => {
-        const pt = diffItem.position || { x: 0, y: 0 };
+        const pt = mapPointToCurrentView(diffItem);
         currentRenderer()?.focusWorldPoint(pt);
       },
     );
+  }
+
+  function mapPointToCurrentView(diffItem) {
+    const point = diffItem?.position || { x: 0, y: 0 };
+    if (state.displayMode === "split") return point;
+    if (diffItem?.status === DIFF_STATUS.ADDED) {
+      return { x: point.x + state.overlayShift.dx, y: point.y + state.overlayShift.dy };
+    }
+    return point;
   }
 
   function applyDisplayMode() {
@@ -254,10 +310,10 @@ export function createApp() {
     rendererB.setItems(buildRenderItemsSingle(state.normB, "B"), state.layerVisibility);
 
     const overlayItems = state.diffResult
-      ? buildRenderItemsOverlay(state.diffResult, state.displayMode)
+      ? buildRenderItemsOverlay(state.diffResult, state.displayMode, { shiftB: state.overlayShift })
       : [
         ...buildRenderItemsSingle(state.normA, "A"),
-        ...buildRenderItemsSingle(state.normB, "B"),
+        ...buildRenderItemsSingle(state.normB, "B").map((it) => ({ ...it, shift: state.overlayShift })),
       ];
     rendererOverlay.setItems(overlayItems, state.layerVisibility);
   }
@@ -332,7 +388,7 @@ export function createApp() {
           const parsedB = await parseDxfFile(p.b.file);
           const normA = normalizeDxf(parsedA, state.tolerances);
           const normB = normalizeDxf(parsedB, state.tolerances);
-          const diff = compareNormalizedDxf(normA, normB, state.tolerances);
+          const diff = compareNormalizedDxf(normA, normB, getCompareOptions());
 
           row.documentDiffCount = diff.stats.documentDiffCount;
           row.entityDiffCount = diff.stats.entityDiffCount;
@@ -388,14 +444,24 @@ export function createApp() {
       if (!detail) return;
       state.normA = detail.normA;
       state.normB = detail.normB;
-      state.diffResult = detail.diff;
+      // Re-run compare with current UI options so "查看詳情" always shows latest diff behavior.
+      syncTolerances();
+      syncCompareFlags();
+      state.diffResult = compareNormalizedDxf(state.normA, state.normB, getCompareOptions());
       state.displayMode = "overlay";
       els.displayMode.value = "overlay";
+      const offset = state.diffResult?.alignment?.offset;
+      if (offset) setOverlayShift(-offset.x, -offset.y);
+      switchTab("single");
       recomputeLayerVisibility();
       applyDisplayMode();
       refreshPanels();
-      rerenderAll();
-      switchTab("single");
+      // Render after single view becomes visible; hidden canvas can report zero size.
+      requestAnimationFrame(() => {
+        rerenderAll();
+        rendererOverlay.fit();
+      });
+      setStatus(`已載入詳情: ${row.name}，文件差異 ${state.diffResult.stats.documentDiffCount}，圖形差異 ${state.diffResult.stats.entityDiffCount}`);
     });
   }
 
