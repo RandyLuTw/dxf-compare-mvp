@@ -58,6 +58,7 @@ export function createApp() {
       zoomInBtn: document.getElementById("zoom-in-btn"),
       zoomOutBtn: document.getElementById("zoom-out-btn"),
       runCompareBtn: document.getElementById("run-compare-btn"),
+      openHelpBtn: document.getElementById("open-help-btn"),
       exportJsonBtn: document.getElementById("export-json-btn"),
       exportHtmlBtn: document.getElementById("export-html-btn"),
       exportStatsBtn: document.getElementById("export-stats-btn"),
@@ -134,6 +135,7 @@ export function createApp() {
     els.zoomOutBtn.addEventListener("click", () => currentRenderer()?.zoomOut());
 
     els.runCompareBtn.addEventListener("click", () => runSingleCompare());
+    els.openHelpBtn.addEventListener("click", openHelpDoc);
     els.showUnchanged.addEventListener("change", () => refreshPanels());
 
     els.tolCoord.addEventListener("change", syncTolerances);
@@ -267,6 +269,10 @@ export function createApp() {
 
   function setStatus(text) {
     if (els.appStatus) els.appStatus.textContent = `狀態: ${text}`;
+  }
+
+  function openHelpDoc() {
+    window.open("./README.md", "_blank", "noopener,noreferrer");
   }
 
   function refreshPanels() {
