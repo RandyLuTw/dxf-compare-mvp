@@ -89,8 +89,20 @@
       <div class="toolbar">
         <label class="file-btn">選擇 Folder A <input id="folder-a" type="file" webkitdirectory directory multiple /></label>
         <label class="file-btn">選擇 Folder B <input id="folder-b" type="file" webkitdirectory directory multiple /></label>
+        <span id="folder-a-label">Folder A 路徑: (未選擇)</span>
+        <span id="folder-b-label">Folder B 路徑: (未選擇)</span>
         <button id="run-folder-compare-btn">開始批次比對</button>
+        <button id="continue-folder-compare-btn">續跑下一批</button>
         <button id="stop-folder-compare-btn">停止比對</button>
+        <label>每批筆數 <input id="batch-size" type="number" min="1" step="1" value="100" /></label>
+        <label>起始索引 <input id="batch-start" type="number" min="1" step="1" value="1" /></label>
+        <label><input id="auto-export-batch-csv" type="checkbox" checked /> 每批自動匯出CSV</label>
+        <button id="pick-output-folder-btn">選擇輸出資料夾</button>
+        <span id="output-folder-label">輸出資料夾: (未設定，將改用瀏覽器下載)</span>
+        <label>設定檔名稱 <input id="batch-profile-name" type="text" placeholder="例如: A-B-100筆" /></label>
+        <button id="save-batch-profile-btn">儲存設定</button>
+        <select id="batch-profile-select"></select>
+        <button id="load-batch-profile-btn">載入設定</button>
 
         <label><input id="folder-only-diff" type="checkbox" /> 只看有差異</label>
         <label>排序
